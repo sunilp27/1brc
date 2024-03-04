@@ -1,7 +1,15 @@
 package main
 
-import "sunilpatil/1brc/brc"
+import (
+	"log"
+	"sunilpatil/1brc/brc"
+	"time"
+)
 
 func main() {
-	brc.BasicCalc()
+	start := time.Now()
+	brc.Optimised()
+	//karan.Karan()
+	elapsed := time.Since(start)
+	log.Printf("time took %s", elapsed)
 }
