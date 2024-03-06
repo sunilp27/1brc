@@ -1,6 +1,7 @@
 package brc
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -11,29 +12,35 @@ import (
 	"sync"
 )
 
-const chunkSize = 2 * 1024 * 1024
-
 var (
 	numWorkers int
+	chunkSize  int64
+	fileName   string
 )
 
 func Optimised() {
 
-	finalResults := make(map[string]*Temp)
+	flag.Int64Var(&chunkSize, "n", 2*1024, "chunk size in KB")
+	flag.StringVar(&fileName, "f", "measurements.txt", "file name")
+	flag.Parse()
+
+	chunkSize = chunkSize * 1024
+
+	finalResults := make(map[string]*Stat)
 
 	numWorkers = runtime.NumCPU()
 	runtime.GOMAXPROCS(numWorkers)
 
 	log.Printf("Number of workers/cpu is %d", numWorkers)
 
-	fileName := os.Args[1]
 	file, err := os.Open(fileName)
 	if err != nil {
-		panic(err)
+		log.Fatal("ERROR !!! file not found ", fileName)
+		os.Exit(1)
 	}
 	defer file.Close()
 
-	resultsChan := make(chan map[string]*Temp, numWorkers)
+	resultsChan := make(chan map[string]*Stat, numWorkers)
 
 	fileInfo, _ := file.Stat()
 	fileSize := fileInfo.Size()
@@ -108,26 +115,31 @@ func Optimised() {
 
 }
 
-func process(data []byte, wg *sync.WaitGroup, resultChan chan<- map[string]*Temp) {
+func process(data []byte, wg *sync.WaitGroup, resultChan chan<- map[string]*Stat) {
 
 	defer wg.Done()
 
 	lines := strings.Split(string(data), "\n")
-	mp := make(map[string]*Temp)
+	mp := make(map[string]*Stat)
 
 	for _, line := range lines {
-		spilt := strings.Split(line, ";")
-		if len(spilt) < 2 {
+
+		delimiter := strings.Index(line, ";")
+
+		if delimiter < 0 {
 			continue
 		}
 
-		t, err := strconv.ParseFloat(spilt[1], 64)
+		city := line[0:delimiter]
+		temp := line[delimiter+1:]
+
+		t, err := strconv.ParseFloat(temp, 64)
 		if err != nil {
 			continue
 		}
 
-		if val, ok := mp[spilt[0]]; !ok {
-			mp[spilt[0]] = &Temp{t, t, t, 1}
+		if val, ok := mp[city]; !ok {
+			mp[city] = &Stat{t, t, t, 1}
 		} else {
 			if val.max < t {
 				val.max = t

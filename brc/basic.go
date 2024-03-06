@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-type Temp struct {
+type Stat struct {
 	min   float64
 	max   float64
 	mean  float64
@@ -30,13 +30,13 @@ func BasicCalc() {
 	defer file.Close()
 
 	reader := bufio.NewReader(file)
-	mp := make(map[string]*Temp)
+	mp := make(map[string]*Stat)
 
 	for str, _, err := reader.ReadLine(); err != io.EOF; str, _, err = reader.ReadLine() {
 		spilt := strings.Split(string(str), ";")
 		t, _ := strconv.ParseFloat(spilt[1], 64)
 		if val, ok := mp[spilt[0]]; !ok {
-			mp[spilt[0]] = &Temp{t, t, t, 1}
+			mp[spilt[0]] = &Stat{t, t, t, 1}
 		} else {
 			if val.max < t {
 				val.max = t
@@ -55,7 +55,7 @@ func BasicCalc() {
 	log.Printf("time took %s", elapsed)
 }
 
-func print(mp map[string]*Temp) {
+func print(mp map[string]*Stat) {
 
 	//sort keys
 

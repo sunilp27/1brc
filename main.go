@@ -2,14 +2,14 @@ package main
 
 import (
 	"log"
-	"sunilpatil/1brc/brc"
+	"sunilpatil/1brc/elh"
 	"time"
 )
 
 func main() {
 	start := time.Now()
-	brc.Optimised()
-	//karan.Karan()
+	//brc.Optimised()
+	elh.Main()
 	elapsed := time.Since(start)
 	log.Printf("time took %s", elapsed)
 }
