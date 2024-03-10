@@ -81,6 +81,11 @@ func Optimised() {
 				break
 			}
 
+			// set size of last chunk
+			if offset+chunkSize > fileSize {
+				data = data[:fileSize-offset]
+			}
+
 			offset = offset + chunkSize
 
 			byt := make([]byte, 1)
@@ -88,14 +93,14 @@ func Optimised() {
 			if offset < fileSize {
 				for {
 					_, err := file.ReadAt(byt, offset)
-					char := string(byt[0])
-					data = append(data, byt[0])
-					if char == "\n" {
-						break
-					}
 					if err == io.EOF {
 						break
 					}
+					if byt[0] == '\n' {
+						offset++
+						break
+					}
+					data = append(data, byt[0])
 					offset++
 				}
 			}
@@ -126,6 +131,7 @@ func process(data []byte, wg *sync.WaitGroup, resultChan chan<- map[string]*Stat
 
 		delimiter := strings.Index(line, ";")
 
+		// ignore last line
 		if delimiter < 0 {
 			continue
 		}
@@ -135,6 +141,7 @@ func process(data []byte, wg *sync.WaitGroup, resultChan chan<- map[string]*Stat
 
 		t, err := strconv.ParseFloat(temp, 64)
 		if err != nil {
+			log.Printf("error in str conv")
 			continue
 		}
 
