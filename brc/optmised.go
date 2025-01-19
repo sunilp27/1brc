@@ -1,14 +1,12 @@
 package brc
 
 import (
-	"flag"
+	"bytes"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"runtime"
-	"strconv"
-	"strings"
 	"sync"
 )
 
@@ -18,20 +16,18 @@ var (
 	fileName   string
 )
 
-func Optimised() {
+func Optimised(measurementsPath string) {
 
-	flag.Int64Var(&chunkSize, "n", 2*1024, "chunk size in KB")
-	flag.StringVar(&fileName, "f", "measurements.txt", "file name")
-	flag.Parse()
+	chunkSize = 32 * 1024 * 1024
 
-	chunkSize = chunkSize * 1024
-
-	finalResults := make(map[string]*Stat)
+	finalResults := make(map[string]*Stat, 1000)
 
 	numWorkers = runtime.NumCPU()
 	runtime.GOMAXPROCS(numWorkers)
 
-	log.Printf("Number of workers/cpu is %d", numWorkers)
+	//log.Printf("Number of workers/cpu is %d", numWorkers)
+
+	fileName = measurementsPath
 
 	file, err := os.Open(fileName)
 	if err != nil {
@@ -116,47 +112,77 @@ func Optimised() {
 	}()
 
 	aggWg.Wait()
-	print(finalResults)
+	//print(finalResults)
 
 }
 
 func process(data []byte, wg *sync.WaitGroup, resultChan chan<- map[string]*Stat) {
-
 	defer wg.Done()
 
-	lines := strings.Split(string(data), "\n")
-	mp := make(map[string]*Stat)
+	// Create a map to store city statistics
+	mp := make(map[string]*Stat, 1000)
 
-	for _, line := range lines {
+	// Variables to track the start of each line
+	start := 0
 
-		delimiter := strings.Index(line, ";")
+	for i, b := range data {
+		if b == '\n' {
+			// Extract a single line
+			line := data[start:i]
+			start = i + 1 // Update start to the next character after '\n'
 
-		// ignore last line
-		if delimiter < 0 {
-			continue
-		}
+			// Find the delimiter ';'
+			delimiter := bytes.IndexByte(line, ';')
 
-		city := line[0:delimiter]
-		temp := line[delimiter+1:]
-
-		t, err := strconv.ParseFloat(temp, 64)
-		if err != nil {
-			log.Printf("error in str conv")
-			continue
-		}
-
-		if val, ok := mp[city]; !ok {
-			mp[city] = &Stat{t, t, t, 1}
-		} else {
-			if val.max < t {
-				val.max = t
+			// Skip if no delimiter (e.g., empty or invalid line)
+			if delimiter < 0 {
+				continue
 			}
-			if val.min > t {
-				val.min = t
+
+			// Extract city and temperature fields
+			city := line[:delimiter]
+			temp := line[delimiter+1:]
+
+			// Parse temperature using a custom function for performance
+			t := ParseFloatFast(temp)
+
+			// Update statistics for the city
+			if val, ok := mp[string(city)]; !ok {
+				// Initialize stats for a new city
+				mp[string(city)] = &Stat{t, t, t, 1}
+			} else {
+				// Update existing stats
+				if val.max < t {
+					val.max = t
+				}
+				if val.min > t {
+					val.min = t
+				}
+				val.mean += t
+				val.count++
 			}
-			val.mean = (val.mean + t)
-			val.count = val.count + 1
 		}
 	}
+
+	// Send the resulting map to the result channel
 	resultChan <- mp
+}
+
+func ParseFloatFast(bs []byte) float64 {
+	var intStartIdx int // is negative?
+	if bs[0] == '-' {
+		intStartIdx = 1
+	}
+
+	v := float64(bs[len(bs)-1]-'0') / 10 // single decimal digit
+	place := 1.0
+	for i := len(bs) - 3; i >= intStartIdx; i-- { // integer part
+		v += float64(bs[i]-'0') * place
+		place *= 10
+	}
+
+	if intStartIdx == 1 {
+		v *= -1
+	}
+	return v
 }
